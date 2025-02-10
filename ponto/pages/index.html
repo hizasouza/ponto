@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ponto Inteligente - Controle de Jornada</title>
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --background-color: #ecf0f1;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--background-color);
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            padding: 2rem;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 500px;
+        }
+
+        h1 {
+            color: var(--primary-color);
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+
+        .input-group {
+            margin-bottom: 1.5rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--primary-color);
+            font-weight: 500;
+        }
+
+        input[type="time"], select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s ease;
+        }
+
+        input[type="time"]:focus, select:focus {
+            outline: none;
+            border-color: var(--secondary-color);
+        }
+
+        .switch-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 1.5rem 0;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 26px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: var(--secondary-color);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(24px);
+        }
+
+        button {
+            width: 100%;
+            padding: 15px;
+            background-color: var(--secondary-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        button:hover {
+            background-color: #2980b9;
+        }
+
+        #result {
+            margin-top: 2rem;
+            padding: 15px;
+            border-radius: 8px;
+            background-color: #f8f9fa;
+            text-align: center;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+
+        .alarm-controls {
+            margin-top: 1rem;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .alarm-controls button {
+            width: auto;
+            padding: 8px 15px;
+            background-color: #95a5a6;
+        }
+
+        footer {
+            margin-top: 2rem;
+            text-align: center;
+            color: #7f8c8d;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>⏰ Controle de Ponto</h1>
+        
+        <div class="input-group">
+            <label for="entryTime">Horário de Entrada:</label>
+            <input type="time" id="entryTime" required>
+        </div>
+
+        <div class="input-group">
+            <label for="workload">Jornada Semanal:</label>
+            <select id="workload">
+                <option value="44">44 horas semanais</option>
+                <option value="40">40 horas semanais</option>
+            </select>
+        </div>
+
+        <button onclick="iniciarSistema()">Iniciar Monitoramento</button>
+        
+        <div id="resultado"></div>
+        <div id="horas-extras" style="display: none; margin-top: 20px;">
+            <h3>Modo Horas Extras Ativo</h3>
+            <p id="info-extra"></p>
+        </div>
+
+        <div class="alarm-controls" style="margin-top: 20px;">
+            <button onclick="pararAlarme()" style="background-color: #e74c3c;">⏹️ Parar Alarme</button>
+        </div>
+    </div>
+
+    <audio id="alarmeSound">
+        <source src="https://assets.mixkit.co/active_storage/sfx/2865/2865-preview.mp3" type="audio/mpeg">
+    </audio>
+
+    <script>
+        let alarmeAtivo = null;
+        let timeoutNormal = null;
+        let timeoutExtra = null;
+        const alarmeSound = document.getElementById('alarmeSound');
+
+        function tocarAlarme(repetir = true) {
+            let contador = 0;
+            const maxRepeticoes = 3;
+            
+            const intervalo = setInterval(() => {
+                if(contador < maxRepeticoes) {
+                    alarmeSound.play();
+                    contador++;
+                } else {
+                    clearInterval(intervalo);
+                    if(repetir) iniciarAlarmeExtra();
+                }
+            }, 2000);
+            
+            alarmeAtivo = intervalo;
+        }
+
+        function calcularHorarios() {
+            const entrada = document.getElementById('entryTime').value;
+            const jornada = document.getElementById('workload').value;
+            
+            if(!entrada) {
+                alert('Selecione o horário de entrada!');
+                return null;
+            }
+
+            const [hora, minuto] = entrada.split(':').map(Number);
+            const dataEntrada = new Date();
+            dataEntrada.setHours(hora, minuto, 0, 0);
+
+            // Cálculos precisos
+            const saidaNormal = new Date(dataEntrada);
+            const horasExtras = jornada === '44' ? 1.2 : 2; // 1h12m ou 2h
+            
+            if(jornada === '44') {
+                saidaNormal.setHours(saidaNormal.getHours() + 9, saidaNormal.getMinutes() + 48);
+            } else {
+                saidaNormal.setHours(saidaNormal.getHours() + 9);
+            }
+
+            const saidaExtra = new Date(saidaNormal);
+            saidaExtra.setHours(saidaExtra.getHours() + Math.floor(horasExtras), saidaExtra.getMinutes() + ((horasExtras % 1) * 60));
+
+            return {
+                normal: {
+                    alarme: new Date(saidaNormal.getTime() - 300000), // 5 minutos antes
+                    saida: saidaNormal
+                },
+                extra: {
+                    alarme: new Date(saidaExtra.getTime() - 300000),
+                    saida: saidaExtra
+                }
+            };
+        }
+
+        function iniciarAlarmeExtra() {
+            const horarios = calcularHorarios();
+            if(!horarios) return;
+
+            document.getElementById('horas-extras').style.display = 'block';
+            document.getElementById('info-extra').innerHTML = `
+                Nova saída prevista: ${horarios.extra.saida.toLocaleTimeString('pt-BR')}
+            `;
+
+            const tempoRestante = horarios.extra.alarme.getTime() - Date.now();
+            
+            if(tempoRestante > 0) {
+                timeoutExtra = setTimeout(() => tocarAlarme(false), tempoRestante);
+            }
+        }
+
+        function iniciarSistema() {
+            const horarios = calcularHorarios();
+            if(!horarios) return;
+
+            // Exibir resultados
+            document.getElementById('resultado').innerHTML = `
+                <strong>Saída Normal:</strong> ${horarios.normal.saida.toLocaleTimeString('pt-BR')}<br>
+                <strong>Alarme Normal:</strong> ${horarios.normal.alarme.toLocaleTimeString('pt-BR')}
+            `;
+
+            // Programar alarmes
+            const tempoAlarmeNormal = horarios.normal.alarme.getTime() - Date.now();
+            
+            if(tempoAlarmeNormal > 0) {
+                timeoutNormal = setTimeout(() => {
+                    tocarAlarme();
+                }, tempoAlarmeNormal);
+            }
+        }
+
+        function pararAlarme() {
+            if(alarmeAtivo) clearInterval(alarmeAtivo);
+            if(timeoutNormal) clearTimeout(timeoutNormal);
+            if(timeoutExtra) clearTimeout(timeoutExtra);
+            
+            alarmeSound.pause();
+            alarmeSound.currentTime = 0;
+            document.getElementById('horas-extras').style.display = 'none';
+        }
+
+        // Configuração inicial
+        if(Notification.permission !== 'granted') {
+            Notification.requestPermission();
+        }
+    </script>
+</body>
+</html>
