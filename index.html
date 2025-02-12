@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ponto Inteligente - Controle de Jornada</title>
+    <link rel="manifest" href="../manifest.json" />
     <style>
         :root {
             --primary-color: #2c3e50;
@@ -163,8 +164,9 @@
             text-align: center;
             color: #7f8c8d;
             font-size: 0.9rem;
-        }
-    </style>
+    }
+</style>
+<script>navigator.serviceWorker.register("service-worker.js")</script> 
 </head>
 <body>
     <div class="container">
